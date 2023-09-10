@@ -4,10 +4,9 @@ import psutil
 from PyQt6.QtCore import QTimer
 
 from pyunpack import Archive
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QDragEnterEvent, QDropEvent,QFont
 from PyQt6.QtCore import QMimeData
-from PyQt6.QtWidgets import QInputDialog
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QInputDialog,QScrollArea
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 import zipfile
 import concurrent.futures
@@ -25,6 +24,23 @@ from zipfile import ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA
 import webbrowser
 import requests
 import shutil
+
+changelogs = [
+    {
+        "version": "1.1.0",
+        "changes": [
+            "Added Quick Send/Share feature.",
+            "Improved drag & drop UI.",
+        ]
+    },
+    {
+        "version": "1.0.0",
+        "changes": [
+            "Initial release.",
+        ]
+    }
+]
+
 
 current_version = "1.0.0"  # Define the current version here
 
@@ -56,14 +72,41 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.copyright_label)
         layout.addWidget(self.version_label)
         self.setLayout(layout)
+        
+    
+
       
+class ChangelogDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Changelog")
+        layout = QVBoxLayout()
+        for log in changelogs:
+            version_label = QLabel(f"Version {log['version']}", self)
+            font = QFont("Arial", 14)
+            font.setBold(True)
+            version_label.setFont(font)
+
+            layout.addWidget(version_label)
+            for change in log['changes']:
+                layout.addWidget(QLabel(f"- {change}", self))
+            layout.addSpacing(10)  # Add some space between different versions
+
+        scroll_area = QScrollArea(self)
+        content_widget = QWidget(self)
+        content_widget.setLayout(layout)
+        scroll_area.setWidget(content_widget)
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(scroll_area)
+        self.setLayout(main_layout)
+
 
 class MyApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.selected_files = []  # Initialize the attribute
         self.initUI()
-
+        
     
 
     def initUI(self):
@@ -90,6 +133,11 @@ class MyApp(QMainWindow):
         self.setWindowIcon(QIcon('Designer-14.png'))
         self.batch_convert_btn = QPushButton("Batch Convert Videos", self)
         self.batch_convert_btn.clicked.connect(self.batchConvertVideos)
+        self.viewChangelogButton = QPushButton("View Changelog", self)
+        self.viewChangelogButton.clicked.connect(self.showChangelog)
+        layout.addWidget(self.viewChangelogButton)
+
+
         layout.addWidget(self.batch_convert_btn)
         # Create a glowing green dot
         green_dot = QLabel()
@@ -173,6 +221,11 @@ class MyApp(QMainWindow):
 
         self.settings = SettingsDialog(self)
         self.settings.theme_selector.currentTextChanged.connect(self.changeTheme)
+        
+    def showChangelog(self):
+        changelog_dialog = ChangelogDialog(self)
+        changelog_dialog.exec()
+
 
     def check_for_updates(self):
         current_version = "1.0.0"  # This is your app's current version. Update this when releasing a new version.
