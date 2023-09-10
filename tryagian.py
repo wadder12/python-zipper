@@ -1,6 +1,11 @@
 import sys
 import os
 from pyunpack import Archive
+from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import QMimeData
+from PyQt6.QtWidgets import QInputDialog
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 import zipfile
 import tarfile
 from moviepy.editor import VideoFileClip
@@ -9,8 +14,9 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                              QDialog, QLabel, QLineEdit, QComboBox, QSpinBox)
 
 from zipfile import ZIP_STORED, ZIP_DEFLATED, ZIP_BZIP2, ZIP_LZMA
-
+import webbrowser
 import requests
+import shutil
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -40,6 +46,7 @@ class SettingsDialog(QDialog):
 class MyApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.selected_files = []  # Initialize the attribute
         self.initUI()
 
     def initUI(self):
@@ -57,6 +64,15 @@ class MyApp(QMainWindow):
         self.progress_bar = QProgressBar(self)
         self.history = QTextEdit(self)
         self.history.setReadOnly(True)
+        self.check_update_btn = QPushButton("Check for Updates", self)
+        self.check_update_btn.clicked.connect(self.check_for_updates)
+        self.download_update_btn = QPushButton("Update Now", self)
+        self.download_update_btn.clicked.connect(self.download_latest_version)
+        self.download_update_btn.setEnabled(False)  # Start with this button disabled
+        self.setAcceptDrops(True)
+
+        layout.addWidget(self.check_update_btn)
+        layout.addWidget(self.download_update_btn)
 
         # Compression Level Selector
         self.compression_label = QLabel("Compression Level:", self)
@@ -85,13 +101,15 @@ class MyApp(QMainWindow):
         self.settings.theme_selector.currentTextChanged.connect(self.changeTheme)
 
     def check_for_updates(self):
-        current_version = "1.0.0"  # This should be your app's current version. Update this whenever you release a new version.
+        current_version = "1.0.0"  # This is your app's current version. Update this when releasing a new version.
         latest_version = self.get_latest_version_from_github()
 
         if latest_version and latest_version != current_version:
-            # Logic to notify the user about the update
+            # Notify the user about the update
             self.history.append(f"New update available! Current version: {current_version}, Latest version: {latest_version}")
-            # Optionally: Provide a link/button to download and install the update.
+            self.download_update_btn.setEnabled(True)  # Enable the "Update Now" button
+        else:
+            self.history.append(f"You are running the latest version: {current_version}")
 
     def get_latest_version_from_github(self):
         repo_url = "https://api.github.com/repos/wadder12/python-zipper/releases/latest"
@@ -100,11 +118,33 @@ class MyApp(QMainWindow):
             response.raise_for_status()  # Raise an exception for HTTP errors
             data = response.json()
             if "tag_name" in data:
-                return data["tag_name"]  # This assumes you use tag names for version numbers.
+                return data["tag_name"]  # Assumes you use tag names for version numbers.
             return None
         except requests.RequestException as e:
             self.history.append(f"Error checking for updates: {str(e)}")
             return None
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        mime_data: QMimeData = event.mimeData()
+        if mime_data.hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        self.selected_files = []  # Clear the list for each new drop
+        urls = event.mimeData().urls()
+        for url in urls:
+            # convert QUrl to local path
+            local_path = url.toLocalFile()
+            if os.path.isfile(local_path):
+                self.selected_files.append(local_path)
+            elif os.path.isdir(local_path):
+                for root, dirs, files in os.walk(local_path):
+                    for file in files:
+                        self.selected_files.append(os.path.join(root, file))
+        self.history.append(f"Selected files: {', '.join(self.selected_files)}")
+
+    def download_latest_version(self):
+        download_url = "https://github.com/wadder12/python-zipper/releases/latest"
+        webbrowser.open(download_url)  # This will open the user's default web browser and navigate to the latest release page.
 
     def browseFiles(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Select Files")
@@ -113,29 +153,40 @@ class MyApp(QMainWindow):
             self.history.append(f"Selected files: {', '.join(files)}")
 
     def unzipFile(self):
-        if hasattr(self, 'selected_files'):
-            for file in self.selected_files:
-                try:
-                    if file.endswith((".zip", ".rar", ".7z", ".tar")):
-                        self._extract_file(file)
-                except Exception as e:
-                    self.history.append(f"Error unzipping {file}: {str(e)}")
+        password, ok = QInputDialog.getText(self, 'Password Input', 'Enter the password for extraction (leave empty for no password):', QLineEdit.EchoMode.Password)
+        if ok:
+            if hasattr(self, 'selected_files'):
+                for file in self.selected_files:
+                    try:
+                        if file.endswith((".zip", ".rar", ".7z", ".tar")):
+                            self._extract_file(file, password)
+                    except Exception as e:
+                        self.history.append(f"Error unzipping {file}: {str(e)}")
 
     def zipFile(self):
         if hasattr(self, 'selected_files'):
             output_file, _ = QFileDialog.getSaveFileName(self, "Save Archive File", filter="Zip Files (*.zip);;Tar Files (*.tar)")
-            if output_file:
+            password, ok = QInputDialog.getText(self, 'Password Input', 'Enter a password for the archive (leave empty for no password):', QLineEdit.EchoMode.Password)
+            if ok and output_file:
                 try:
                     if output_file.endswith(".zip"):
-                        self._zip_files(output_file)
+                        self._zip_files(output_file, password)
                     elif output_file.endswith(".tar"):
                         self._tar_files(output_file)
                 except Exception as e:
                     self.history.append(f"Error archiving files to {output_file}: {str(e)}")
 
-    def _extract_file(self, file):
-        Archive(file).extractall('.')
-        self.history.append(f"Successfully extracted {file}")
+    def _extract_file(self, file, password):
+        if file.endswith(".zip"):
+            with zipfile.ZipFile(file, 'r') as zip_ref:
+                try:
+                    zip_ref.extractall('.', pwd=password.encode() if password else None)
+                    self.history.append(f"Successfully extracted {file}")
+                except RuntimeError as e:
+                    self.history.append(f"Error extracting {file}. Incorrect password or corrupted file.")
+        else:
+            Archive(file).extractall('.')
+            self.history.append(f"Successfully extracted {file}")
 
     def convertFile(self):
         if hasattr(self, 'selected_files'):
@@ -155,18 +206,34 @@ class MyApp(QMainWindow):
         else:
             self.setStyleSheet(light_stylesheet)
 
-    def _zip_files(self, output_file):
-        compression_modes = {
-            "No Compression": ZIP_STORED,
-            "Fastest": ZIP_DEFLATED,
-            "Balanced": ZIP_BZIP2,
-            "Smallest": ZIP_LZMA
-        }
-        mode = compression_modes[self.compression_selector.currentText()]
-        with zipfile.ZipFile(output_file, 'w', compression=mode) as zip_ref:
+    def _zip_files(self, output_file, password, chunk_size=104857600): # 104857600 bytes = 100 MB
+        with zipfile.ZipFile(output_file, 'w') as zip_ref:
             for file in self.selected_files:
-                zip_ref.write(file)
+                zip_ref.write(file, compress_type=zipfile.ZIP_DEFLATED, pwd=password.encode() if password else None)
             self.history.append(f"Successfully zipped files to {output_file}")
+        
+        # If the file size exceeds the chunk size, split it.
+        if os.path.getsize(output_file) > chunk_size:
+            self._split_file(output_file, chunk_size)
+
+    def _split_file(self, file_path, chunk_size):
+        with open(file_path, 'rb') as src_file:
+            part_num = 0
+            while True:
+                chunk = src_file.read(chunk_size)
+                if not chunk:
+                    break
+
+                part_num += 1
+                part_filename = f"{file_path}.part{part_num}"
+                
+                with open(part_filename, 'wb') as part_file:
+                    part_file.write(chunk)
+
+                self.history.append(f"Saved part {part_num} as {part_filename}")
+
+    # Optionally, delete the original file after splitting.
+        os.remove(file_path)
 
     def _tar_files(self, output_file):
         with tarfile.open(output_file, 'w') as tar_ref:
