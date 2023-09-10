@@ -26,6 +26,8 @@ import webbrowser
 import requests
 import shutil
 
+current_version = "1.0.0"  # Define the current version here
+
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,7 +42,11 @@ class SettingsDialog(QDialog):
         self.history_spinbox.setRange(1, 1000)
         self.history_spinbox.setValue(100)
         self.copyright_label = QLabel("© 2023 UNZIPIT. All rights reserved.", self)
-        self.version_label = QLabel("Version 1.0.0", self)
+        self.version_label = QLabel(f"Version {current_version}", self)
+        self.label_socials = QLabel("Socials: FaceBook Twitter Github", self)
+        self.socials_layout = QHBoxLayout()
+        self.socials_layout.addSpacing(100)  # Increase spacing as needed
+
         layout.addWidget(self.label_default_dir)
         layout.addWidget(self.default_dir_input)
         layout.addWidget(self.label_theme)
@@ -50,6 +56,7 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.copyright_label)
         layout.addWidget(self.version_label)
         self.setLayout(layout)
+      
 
 class MyApp(QMainWindow):
     def __init__(self):
@@ -161,7 +168,7 @@ class MyApp(QMainWindow):
         self.setCentralWidget(central_widget)
 
         self.setGeometry(100, 100, 500, 400)
-        self.setWindowTitle('UNZIPIT')
+        self.setWindowTitle('UNZIPIT 🚀')
         self.show()
 
         self.settings = SettingsDialog(self)
@@ -280,7 +287,7 @@ class MyApp(QMainWindow):
             if hasattr(self, 'selected_files'):
                 for file in self.selected_files:
                     try:
-                        if file.endswith((".zip", ".rar", ".7z", ".tar")):
+                        if file.endswith((".zip", ".rar", ".7z", ".tar", ".pbo")):
                             self._extract_file(file, password)
                     except Exception as e:
                         self.history.append(f"Error unzipping {file}: {str(e)}")
@@ -417,3 +424,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = MyApp()
     sys.exit(app.exec())
+
