@@ -127,17 +127,11 @@ class MyApp(QMainWindow):
         # Add combined widget to the status bar
         self.statusBar().addWidget(status_widget)
         
-        # Add a search bar (QLineEdit)
-        self.search_bar = QLineEdit(self)
-        self.search_bar.setPlaceholderText("Search operation history...")
-        self.search_bar.textChanged.connect(self.filterOperationHistory)
+        
 
         
 
-        # Layout setup
-        layout = QVBoxLayout()
-        layout.addWidget(self.search_bar)
-        layout.addWidget(self.history_list)
+        
 
         central_widget = QWidget(self)
         central_widget.setLayout(layout)
