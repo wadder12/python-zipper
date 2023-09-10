@@ -1,5 +1,8 @@
 import sys
 import os
+import psutil
+from PyQt6.QtCore import QTimer
+
 from pyunpack import Archive
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtCore import QMimeData
@@ -8,9 +11,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 import zipfile
 import concurrent.futures
-
+from PyQt6.QtWidgets import QLabel
+from PyQt6.QtGui import QPixmap, QPainter, QColor
 from PyQt6.QtGui import QIcon
-
+from PyQt6.QtWidgets import QLabel, QWidget, QHBoxLayout
 import tarfile
 from moviepy.editor import VideoFileClip
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, 
@@ -53,6 +57,8 @@ class MyApp(QMainWindow):
         self.selected_files = []  # Initialize the attribute
         self.initUI()
 
+    
+
     def initUI(self):
         layout = QVBoxLayout()
         self.browse_btn = QPushButton("Browse Files", self)
@@ -78,10 +84,65 @@ class MyApp(QMainWindow):
         self.batch_convert_btn = QPushButton("Batch Convert Videos", self)
         self.batch_convert_btn.clicked.connect(self.batchConvertVideos)
         layout.addWidget(self.batch_convert_btn)
+        # Create a glowing green dot
+        green_dot = QLabel()
+        pixmap = QPixmap(16, 16)  # You can adjust the size if necessary
+        pixmap.fill(QColor(0, 0, 0, 0))  # Transparent background
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setBrush(QColor(0, 255, 0))
+        painter.drawEllipse(3, 3, 10, 10)
+        painter.end()
+        green_dot.setPixmap(pixmap)
+        
+        # Set a stylesheet to make it appear glowing
+        green_dot.setStyleSheet("""
+            QLabel {
+                border-radius: 8px;  # half of the pixmap size
+                background-color: transparent;
+                box-shadow: 0 0 5px rgba(0, 255, 0, 0.9);
+            }
+        """)
+        
+        # Combine green dot and "Ready" message in a single widget
+        status_widget = QWidget()
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(green_dot)
+        status_layout.addWidget(QLabel("Ready"))
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_widget.setLayout(status_layout)
+        
+        # Create labels for CPU and memory usage
+        self.cpu_label = QLabel()
+        self.memory_label = QLabel()
+        
+        self.statusBar().addWidget(self.cpu_label)
+        self.statusBar().addWidget(self.memory_label)
+
+        # Timer to update CPU and Memory Usage
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.updateSystemMetrics)
+        self.timer.start(1000)  # every second, adjust as needed
+        
+        # Add combined widget to the status bar
+        self.statusBar().addWidget(status_widget)
+        
+        # Add a search bar (QLineEdit)
+        self.search_bar = QLineEdit(self)
+        self.search_bar.setPlaceholderText("Search operation history...")
+        self.search_bar.textChanged.connect(self.filterOperationHistory)
+
         
 
+        # Layout setup
+        layout = QVBoxLayout()
+        layout.addWidget(self.search_bar)
+        layout.addWidget(self.history_list)
 
-
+        central_widget = QWidget(self)
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+        
 
         layout.addWidget(self.check_update_btn)
         layout.addWidget(self.download_update_btn)
@@ -135,10 +196,42 @@ class MyApp(QMainWindow):
         except requests.RequestException as e:
             self.history.append(f"Error checking for updates: {str(e)}")
             return None
+        
+    def updateSystemMetrics(self):
+        cpu_usage = psutil.cpu_percent()
+        memory_info = psutil.virtual_memory()
+        self.cpu_label.setText(f"CPU: {cpu_usage}%")
+        self.memory_label.setText(f"Memory: {memory_info.percent}%")
+        
+    def someOperationMethod(self):
+        # For example, before starting an operation:
+        self.statusBar().showMessage('Operation started...')
+        
+        # ... [operation code]
+        
+        # After finishing the operation:
+        self.statusBar().showMessage('Operation completed successfully!')
+        
+    
+        
     def dragEnterEvent(self, event: QDragEnterEvent):
         mime_data: QMimeData = event.mimeData()
         if mime_data.hasUrls():
             event.acceptProposedAction()
+            self.highlightUI(True)
+            self.statusBar().showMessage('Drop files to proceed...')  # Added a status message
+
+    def dragLeaveEvent(self, event: QDragEnterEvent):
+        self.highlightUI(False)
+        self.setToolTip("")  
+        self.statusBar().showMessage('Ready')  # Reset status message when user drags away
+
+    def highlightUI(self, highlight: bool):
+        if highlight:
+            self.setStyleSheet("background-color: rgba(0, 128, 255, 0.1);")  # Light blue highlight
+            self.setToolTip("Drop files here!")  # Set tooltip when files are dragged over the application
+        else:
+            self.setStyleSheet("")  # Reset to the default or current theme
             
     def batchConvertVideos(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Select Multiple Videos", "", "Video Files (*.mp4)")
@@ -244,7 +337,7 @@ class MyApp(QMainWindow):
     def _zip_files(self, output_file, password, chunk_size=104857600): # 104857600 bytes = 100 MB
         with zipfile.ZipFile(output_file, 'w') as zip_ref:
             for file in self.selected_files:
-                zip_ref.write(file, compress_type=zipfile.ZIP_DEFLATED, pwd=password.encode() if password else None)
+                zip_ref.write(file, compress_type=zipfile.ZIP_DEFLATED, pwd=password.encode() if password else None) # type: ignore
             self.history.append(f"Successfully zipped files to {output_file}")
         
         # If the file size exceeds the chunk size, split it.
