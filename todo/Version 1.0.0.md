@@ -1,6 +1,6 @@
 Logging: Instead of just showing the history in the UI, you could save a detailed log of user actions and errors to a file. This will help with troubleshooting and user support.
 !!!Additional File Formats: Add support for other archive formats such as .rar, .7z, and others. You'd need libraries that support these formats.
-Batch Conversion: Allow users to convert multiple videos to GIFs (or the opposite) in one go, maybe even with parallel processing for faster results.
+!!Batch Conversion: Allow users to convert multiple videos to GIFs (or the opposite) in one go, maybe even with parallel processing for faster results.
 !!!Preview: Provide a preview for selected files, especially for images and videos. This could be beneficial when converting from MP4 to GIF, as the user can preview the MP4 before conversion.
 Password Protection: Allow users to create password-protected zip files and also add the ability to unzip password-protected archives.
 !!!Compression Level: Provide an option for users to choose the compression level when zipping files, which can determine the balance between file size and compression time.

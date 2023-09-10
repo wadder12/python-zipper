@@ -7,6 +7,10 @@ from PyQt6.QtWidgets import QInputDialog
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 import zipfile
+import concurrent.futures
+
+from PyQt6.QtGui import QIcon
+
 import tarfile
 from moviepy.editor import VideoFileClip
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, 
@@ -70,6 +74,14 @@ class MyApp(QMainWindow):
         self.download_update_btn.clicked.connect(self.download_latest_version)
         self.download_update_btn.setEnabled(False)  # Start with this button disabled
         self.setAcceptDrops(True)
+        self.setWindowIcon(QIcon('Designer-14.png'))
+        self.batch_convert_btn = QPushButton("Batch Convert Videos", self)
+        self.batch_convert_btn.clicked.connect(self.batchConvertVideos)
+        layout.addWidget(self.batch_convert_btn)
+        
+
+
+
 
         layout.addWidget(self.check_update_btn)
         layout.addWidget(self.download_update_btn)
@@ -127,6 +139,29 @@ class MyApp(QMainWindow):
         mime_data: QMimeData = event.mimeData()
         if mime_data.hasUrls():
             event.acceptProposedAction()
+            
+    def batchConvertVideos(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "Select Multiple Videos", "", "Video Files (*.mp4)")
+        if files:
+            self.selected_files = files
+            total_files = len(self.selected_files)
+            self.progress_bar.setValue(0)
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for idx, output_gif in enumerate(executor.map(self.convertToGif, self.selected_files)):
+                    self.history.append(f"Converted to {output_gif}")
+                    # Calculate the percentage and update progress bar
+                    progress_percentage = int((idx + 1) / total_files * 100)
+                    self.progress_bar.setValue(progress_percentage)
+                    
+
+
+    def convertToGif(self, file):
+        if file.endswith('.mp4'):
+            output_gif = os.path.splitext(file)[0] + '.gif'
+            clip = VideoFileClip(file)
+            clip.write_gif(output_gif)
+            return output_gif
 
     def dropEvent(self, event: QDropEvent):
         self.selected_files = []  # Clear the list for each new drop
