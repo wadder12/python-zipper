@@ -1,3 +1,16 @@
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QPushButton, 
+    QProgressBar, QTextEdit, QFileDialog, QLineEdit,
+    QInputDialog
+)
+from changelogdialog import ChangelogDialog
+from setter import SettingsDialog
+from pyunpack import Archive
+from PyQt6.QtGui import QIcon
+from styles import dark_stylesheet, light_stylesheet
+from moviepy.editor import VideoFileClip
+import os
+from utils import convertToGif
 import concurrent.futures
 import os
 import shutil
@@ -6,7 +19,7 @@ import tarfile
 import webbrowser
 import zipfile
 from zipfile import ZIP_BZIP2, ZIP_DEFLATED, ZIP_LZMA, ZIP_STORED
-
+import zipfile
 import psutil
 import requests
 from moviepy.editor import VideoFileClip
@@ -20,89 +33,12 @@ from PyQt6.QtWidgets import (QApplication, QComboBox, QDialog, QFileDialog,
                              QWidget)
 from pyunpack import Archive
 
-changelogs = [
-    {
-        "version": "1.1.0",
-        "changes": [
-            "Added Quick Send/Share feature.",
-            "Improved drag & drop UI.",
-        ]
-    },
-    {
-        "version": "1.0.0",
-        "changes": [
-            "Initial release.",
-        ]
-    }
-]
-
-
-current_version = "1.0.0"  # Define the current version here
-
-class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QVBoxLayout()
-        self.label_default_dir = QLabel("Default Extraction Directory:", self)
-        self.default_dir_input = QLineEdit(self)
-        self.label_theme = QLabel("Theme:", self)
-        self.theme_selector = QComboBox(self)
-        self.theme_selector.addItems(["Light", "Dark"])
-        self.label_history = QLabel("Max History Items:", self)
-        self.history_spinbox = QSpinBox(self)
-        self.history_spinbox.setRange(1, 1000)
-        self.history_spinbox.setValue(100)
-        self.copyright_label = QLabel("© 2023 UNZIPIT. All rights reserved.", self)
-        self.version_label = QLabel(f"Version {current_version}", self)
-        self.label_socials = QLabel("Socials: FaceBook Twitter Github", self)
-        self.socials_layout = QHBoxLayout()
-        self.socials_layout.addSpacing(100)  # Increase spacing as needed
-
-        layout.addWidget(self.label_default_dir)
-        layout.addWidget(self.default_dir_input)
-        layout.addWidget(self.label_theme)
-        layout.addWidget(self.theme_selector)
-        layout.addWidget(self.label_history)
-        layout.addWidget(self.history_spinbox)
-        layout.addWidget(self.copyright_label)
-        layout.addWidget(self.version_label)
-        self.setLayout(layout)
-        
-    
-
-      
-class ChangelogDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Changelog")
-        layout = QVBoxLayout()
-        for log in changelogs:
-            version_label = QLabel(f"Version {log['version']}", self)
-            font = QFont("Arial", 14)
-            font.setBold(True)
-            version_label.setFont(font)
-
-            layout.addWidget(version_label)
-            for change in log['changes']:
-                layout.addWidget(QLabel(f"- {change}", self))
-            layout.addSpacing(10)  # Add some space between different versions
-
-        scroll_area = QScrollArea(self)
-        content_widget = QWidget(self)
-        content_widget.setLayout(layout)
-        scroll_area.setWidget(content_widget)
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(scroll_area)
-        self.setLayout(main_layout)
-
-
 class MyApp(QMainWindow):
+
     def __init__(self):
         super().__init__()
-        self.selected_files = []  # Initialize the attribute
+        self.selected_files = []
         self.initUI()
-        
-    
 
     def initUI(self):
         layout = QVBoxLayout()
@@ -119,21 +55,25 @@ class MyApp(QMainWindow):
         self.progress_bar = QProgressBar(self)
         self.history = QTextEdit(self)
         self.history.setReadOnly(True)
-        self.check_update_btn = QPushButton("Check for Updates", self)
-        self.check_update_btn.clicked.connect(self.check_for_updates)
-        self.download_update_btn = QPushButton("Update Now", self)
-        self.download_update_btn.clicked.connect(self.download_latest_version)
-        self.download_update_btn.setEnabled(False)  # Start with this button disabled
         self.setAcceptDrops(True)
         self.setWindowIcon(QIcon('Designer-14.png'))
-        self.batch_convert_btn = QPushButton("Batch Convert Videos", self)
-        self.batch_convert_btn.clicked.connect(self.batchConvertVideos)
+        central_widget = QWidget(self)
+        central_widget.setLayout(layout)
+        layout.addWidget(self.browse_btn)
+        layout.addWidget(self.convert_btn)
+        layout.addWidget(self.unzip_btn)
+        layout.addWidget(self.zip_btn)
+        layout.addWidget(self.settings_btn)
+        layout.addWidget(self.progress_bar)
+        layout.addWidget(self.history)
+        
+        # Compression Level Selector
+        self.compression_label = QLabel("Compression Level:", self)
+        self.compression_selector = QComboBox(self)
+        self.compression_selector.addItems(["No Compression", "Fastest", "Balanced", "Smallest"])
         self.viewChangelogButton = QPushButton("View Changelog", self)
         self.viewChangelogButton.clicked.connect(self.showChangelog)
         layout.addWidget(self.viewChangelogButton)
-
-
-        layout.addWidget(self.batch_convert_btn)
         # Create a glowing green dot
         green_dot = QLabel()
         pixmap = QPixmap(16, 16)  # You can adjust the size if necessary
@@ -176,47 +116,13 @@ class MyApp(QMainWindow):
         
         # Add combined widget to the status bar
         self.statusBar().addWidget(status_widget)
-        
-        
-
-        
-
-        
-
-        central_widget = QWidget(self)
-        central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
-        
-
-        layout.addWidget(self.check_update_btn)
-        layout.addWidget(self.download_update_btn)
-
-        # Compression Level Selector
-        self.compression_label = QLabel("Compression Level:", self)
-        self.compression_selector = QComboBox(self)
-        self.compression_selector.addItems(["No Compression", "Fastest", "Balanced", "Smallest"])
-
-        layout.addWidget(self.browse_btn)
-        layout.addWidget(self.convert_btn)
-        layout.addWidget(self.zip_btn)
-        layout.addWidget(self.unzip_btn)
-        layout.addWidget(self.compression_label)
-        layout.addWidget(self.compression_selector)
-        layout.addWidget(self.progress_bar)
-        layout.addWidget(self.settings_btn)
-        layout.addWidget(self.history)
-
-        central_widget = QWidget(self)
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
-
         self.setGeometry(100, 100, 500, 400)
         self.setWindowTitle('UNZIPIT 🚀')
         self.show()
-
         self.settings = SettingsDialog(self)
         self.settings.theme_selector.currentTextChanged.connect(self.changeTheme)
-        
+
     def showChangelog(self):
         changelog_dialog = ChangelogDialog(self)
         changelog_dialog.exec()
@@ -417,59 +323,3 @@ class MyApp(QMainWindow):
             for file in self.selected_files:
                 tar_ref.add(file)
             self.history.append(f"Successfully archived files to {output_file}")
-
-dark_stylesheet = """
-    QMainWindow {
-        background-color: #333;
-    }
-    QPushButton {
-        background-color: #555;
-        border: 2px solid #888;
-        color: white;
-    }
-    QPushButton:hover {
-        background-color: #666;
-    }
-    QTextEdit {
-        background-color: #222;
-        color: #AAA;
-    }
-    QProgressBar {
-        border: 2px solid #888;
-        text-align: center;
-    }
-    QProgressBar::chunk {
-        background-color: #05B8CC;
-    }
-"""
-
-light_stylesheet = """
-    QMainWindow {
-        background-color: #EEE;
-    }
-    QPushButton {
-        background-color: #CCC;
-        border: 2px solid #AAA;
-        color: #333;
-    }
-    QPushButton:hover {
-        background-color: #DDD;
-    }
-    QTextEdit {
-        background-color: #FFF;
-        color: #333;
-    }
-    QProgressBar {
-        border: 2px solid #AAA;
-        text-align: center;
-    }
-    QProgressBar::chunk {
-        background-color: #05B8CC;
-    }
-"""
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = MyApp()
-    sys.exit(app.exec())
-
